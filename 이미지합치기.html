@@ -244,7 +244,7 @@
 
         <div id="dropzone">
           <strong>클릭하거나 이미지를 끌어다 놓으세요</strong>
-          캡처한 순서대로 선택하면 그대로 정렬됩니다
+          캡처한 순서대로 선택하면 그대로 정렬됩니다 (Ctrl+V로 붙여넣기도 가능)
         </div>
         <input type="file" id="fileInput" accept="image/*" multiple>
 
@@ -372,6 +372,19 @@ dropzone.addEventListener('drop', e => {
   handleFiles(e.dataTransfer.files);
 });
 fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+window.addEventListener('paste', e => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  const files = Array.from(items)
+    .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+    .map(item => item.getAsFile())
+    .filter(Boolean);
+  if (files.length) {
+    e.preventDefault();
+    handleFiles(files);
+  }
+});
 
 function handleFiles(fileList) {
   const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
