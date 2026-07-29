@@ -148,6 +148,8 @@
   .annot-toolbar label{display:flex;align-items:center;gap:6px;white-space:nowrap;}
   .annot-toolbar input[type=color]{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;padding:0;cursor:pointer;background:none;}
   .annot-toolbar input[type=range]{width:100px;accent-color:var(--accent);}
+  .annot-toolbar select{border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px;color:var(--ink);background:#fff;cursor:pointer;}
+  .annot-toolbar input[type=checkbox]{accent-color:var(--accent);cursor:pointer;}
   .tool-chip-group{display:flex;gap:4px;}
   .tool-chip{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;color:var(--ink);}
   .tool-chip.active{background:var(--ink);color:#fff;border-color:var(--ink);}
@@ -164,6 +166,10 @@
   .annot-box-outline.selected,
   .annot-text-outline.selected{
     outline:2px solid #2f6bd6;outline-offset:2px;
+  }
+  .resize-handle{
+    position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;
+    background:#2f6bd6;border:2px solid #fff;border-radius:2px;cursor:nwse-resize;touch-action:none;z-index:8;
   }
 
   .text-input-overlay{
@@ -264,6 +270,21 @@
           <label>박스 색상 <input type="color" id="boxColorInput" value="#e02424"></label>
           <label>텍스트 색상 <input type="color" id="textColorInput" value="#e02424"></label>
           <label>텍스트 크기 <input type="range" id="textSizeRange" min="14" max="72" value="28"><span id="textSizeVal">28px</span></label>
+          <label>폰트
+            <select id="fontFamilySelect">
+              <option value="'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif">기본</option>
+              <option value="'Malgun Gothic','Apple SD Gothic Neo',sans-serif">맑은 고딕</option>
+              <option value="'Dotum','Malgun Gothic',sans-serif">돋움</option>
+              <option value="'Gulim','Malgun Gothic',sans-serif">굴림</option>
+              <option value="'NanumGothic','Malgun Gothic',sans-serif">나눔고딕</option>
+              <option value="Arial, sans-serif">Arial</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="'Courier New', monospace">Courier New</option>
+              <option value="Impact, sans-serif">Impact</option>
+              <option value="'Comic Sans MS', cursive">Comic Sans MS</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="boldToggle" checked> 굵게</label>
         </div>
 
         <div id="stitchStage">
@@ -274,7 +295,7 @@
         </div>
         <div class="hint" id="dragHint" style="display:none;">이미지 위 초록 점선을 위아래로 드래그하면 바로 위 이미지의 하단이 잘려요 (아래로 당기면 덜 자르고, 위로 당기면 더 잘라요). 아래쪽 이음매 조정 박스에서 반대편(아래 이미지 상단)도 따로 자를 수 있어요.</div>
         <div class="hint" id="maskHint" style="display:none;">마스킹 모드에서는 가리고 싶은 부분을 이미지 위에서 드래그하면 흐림 처리로 덮여요. 박스 안쪽을 드래그하면 위치를 옮길 수 있고, 우측 상단 ✕로 지울 수 있어요. 이음매 조정을 먼저 끝낸 뒤 마지막 단계로 사용하는 걸 추천해요.</div>
-        <div class="hint" id="annotHint" style="display:none;">박스/텍스트 모드에서는 위에서 도구를 고른 뒤 이미지 위에 드래그(박스)하거나 클릭(텍스트)하세요. 항목을 클릭해서 선택하면 위쪽 색상·크기로 바로 수정할 수 있고, 항목 안쪽을 드래그하면 위치를 옮길 수 있어요. 텍스트는 더블클릭하면 내용을 수정할 수 있고, 선택한 상태에서 Delete(또는 Backspace) 키를 누르면 삭제돼요.</div>
+        <div class="hint" id="annotHint" style="display:none;">박스/텍스트 모드에서는 위에서 도구를 고른 뒤 이미지 위에 드래그(박스)하거나 클릭(텍스트)하세요. 항목을 클릭해서 선택하면 위쪽 색상·텍스트 크기·폰트·굵게 여부를 바로 수정할 수 있고, 항목 안쪽을 드래그하면 위치를 옮길 수 있어요. 박스는 선택 시 우측 하단 파란 점을 드래그해 크기를 조절할 수 있고, 텍스트는 더블클릭하면 내용을 수정할 수 있어요. 선택한 상태에서 Delete(또는 Backspace) 키를 누르면 삭제돼요.</div>
 
         <div id="seamList"></div>
         <div class="hint" id="hintText"></div>
@@ -313,6 +334,8 @@ const boxColorInput = document.getElementById('boxColorInput');
 const textColorInput = document.getElementById('textColorInput');
 const textSizeRange = document.getElementById('textSizeRange');
 const textSizeVal = document.getElementById('textSizeVal');
+const fontFamilySelect = document.getElementById('fontFamilySelect');
+const boldToggle = document.getElementById('boldToggle');
 
 // each entry: {id, file, img, fixedTop, overlap}
 let entries = [];
@@ -340,8 +363,11 @@ let annotTool = 'box';   // 'box' | 'text'
 let boxColor = '#e02424';
 let textColor = '#e02424';
 let textSize = 28;
+let textFontFamily = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif";
+let textBold = true;
 let annotDraft = null;
 let activeAnnotMove = null;
+let activeAnnotResize = null;
 let selectedAnnotId = null;
 
 dropzone.addEventListener('click', () => fileInput.click());
@@ -749,7 +775,7 @@ function composeNow(rebuildHandles, rebuildMasks, rebuildAnnots) {
     } else if (a.type === 'text') {
       ctx.save();
       ctx.fillStyle = a.color;
-      ctx.font = `700 ${a.fontSize}px 'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif`;
+      ctx.font = `${a.bold ? 700 : 400} ${a.fontSize}px ${a.fontFamily || textFontFamily}`;
       ctx.textBaseline = 'top';
       (a.text || '').split('\n').forEach((line, i) => {
         ctx.fillText(line, a.x, a.y + i * Math.round(a.fontSize * 1.3));
@@ -1108,6 +1134,16 @@ textSizeRange.addEventListener('input', () => {
   const sel = getSelectedAnnotation();
   if (sel && sel.type === 'text') { sel.fontSize = textSize; composeNow(true, true, true); }
 });
+fontFamilySelect.addEventListener('change', () => {
+  textFontFamily = fontFamilySelect.value;
+  const sel = getSelectedAnnotation();
+  if (sel && sel.type === 'text') { sel.fontFamily = textFontFamily; composeNow(true, true, true); }
+});
+boldToggle.addEventListener('change', () => {
+  textBold = boldToggle.checked;
+  const sel = getSelectedAnnotation();
+  if (sel && sel.type === 'text') { sel.bold = textBold; composeNow(true, true, true); }
+});
 
 window.addEventListener('keydown', ev => {
   if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedAnnotId !== null) {
@@ -1156,7 +1192,7 @@ function endAnnotBoxDrag(ev) {
 
 const measureCtx = document.createElement('canvas').getContext('2d');
 function measureTextAnnotation(a) {
-  measureCtx.font = `700 ${a.fontSize}px 'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif`;
+  measureCtx.font = `${a.bold ? 700 : 400} ${a.fontSize}px ${a.fontFamily || textFontFamily}`;
   const lines = (a.text || '').split('\n');
   let maxW = 0;
   lines.forEach(line => { const w = measureCtx.measureText(line).width; if (w > maxW) maxW = w; });
@@ -1171,7 +1207,8 @@ function startTextInput(point, existing) {
   ta.style.top = (point.y / resultDims.h * 100) + '%';
   ta.style.color = existing ? existing.color : textColor;
   ta.style.fontSize = (existing ? existing.fontSize : textSize) + 'px';
-  ta.style.fontWeight = '700';
+  ta.style.fontFamily = existing ? existing.fontFamily : textFontFamily;
+  ta.style.fontWeight = (existing ? existing.bold : textBold) ? '700' : '400';
   ta.value = existing ? existing.text : '';
   ta.placeholder = '텍스트 입력 후 Enter (줄바꿈은 Shift+Enter)';
   stageInner.appendChild(ta);
@@ -1195,7 +1232,7 @@ function startTextInput(point, existing) {
     if (existing) {
       existing.text = val;
     } else {
-      const a = { id: annotIdSeq++, type: 'text', x: point.x, y: point.y, text: val, color: textColor, fontSize: textSize };
+      const a = { id: annotIdSeq++, type: 'text', x: point.x, y: point.y, text: val, color: textColor, fontSize: textSize, fontFamily: textFontFamily, bold: textBold };
       annotations.push(a);
       annotClearBtn.style.display = 'inline-block';
     }
@@ -1221,6 +1258,8 @@ function selectAnnotation(a) {
     textColorInput.value = a.color;
     textSizeRange.value = a.fontSize;
     textSizeVal.textContent = a.fontSize + 'px';
+    fontFamilySelect.value = a.fontFamily;
+    boldToggle.checked = a.bold;
   }
   renderAnnotationOverlays();
 }
@@ -1268,6 +1307,14 @@ function renderAnnotationOverlays() {
       });
     }
 
+    if (a.type === 'box' && a.id === selectedAnnotId) {
+      const handle = document.createElement('div');
+      handle.className = 'resize-handle';
+      handle.title = '드래그해서 크기 조절';
+      handle.addEventListener('pointerdown', ev => startAnnotResize(ev, a, outline));
+      outline.appendChild(handle);
+    }
+
     stageInner.appendChild(outline);
   });
 }
@@ -1297,6 +1344,42 @@ function endAnnotMove() {
   activeAnnotMove = null;
   window.removeEventListener('pointermove', onAnnotMove);
   window.removeEventListener('pointerup', endAnnotMove);
+  composeNow(true, true, true);
+}
+
+function startAnnotResize(ev, a, outline) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  activeAnnotResize = { a, outline, rafPending: false };
+  window.addEventListener('pointermove', onAnnotResize);
+  window.addEventListener('pointerup', endAnnotResize);
+}
+
+function onAnnotResize(ev) {
+  if (!activeAnnotResize) return;
+  const { a, outline } = activeAnnotResize;
+  const p = naturalPointFromEvent(ev);
+  const newW = Math.max(10, Math.min(resultDims.w - a.x, p.x - a.x));
+  const newH = Math.max(10, Math.min(resultDims.h - a.y, p.y - a.y));
+  a.w = newW; a.h = newH;
+  outline.style.width = (newW / resultDims.w * 100) + '%';
+  outline.style.height = (newH / resultDims.h * 100) + '%';
+
+  if (!activeAnnotResize.rafPending) {
+    activeAnnotResize.rafPending = true;
+    requestAnimationFrame(() => {
+      if (!activeAnnotResize) return;
+      activeAnnotResize.rafPending = false;
+      composeNow(true, true, false);
+    });
+  }
+}
+
+function endAnnotResize() {
+  if (!activeAnnotResize) return;
+  activeAnnotResize = null;
+  window.removeEventListener('pointermove', onAnnotResize);
+  window.removeEventListener('pointerup', endAnnotResize);
   composeNow(true, true, true);
 }
 
