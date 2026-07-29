@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>화면 캡처 이어붙이기</title>
+<style>
+  :root{
+    --bg:#f6f5f2;
+    --panel:#ffffff;
+    --ink:#1f2320;
+    --sub:#6b6f6a;
+    --line:#e4e2dc;
+    --accent:#2f6b4f;
+    --accent-soft:#e7f0ea;
+    --danger:#b5482f;
+    --warn:#a8791f;
+    --warn-soft:#faf3e2;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    padding:28px 20px 80px;
+  }
+  .wrap{max-width:1280px;margin:0 auto;}
+  header{margin-bottom:20px;}
+  header h1{font-size:22px;margin:0 0 6px;letter-spacing:-0.3px;}
+  header p{margin:0;color:var(--sub);font-size:14px;line-height:1.6;}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:20px;
+  }
+
+  /* ---- workspace: left = upload/order, right = live merged preview ---- */
+  .workspace{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start;}
+  @media (max-width:860px){ .workspace{grid-template-columns:1fr;} }
+
+  .col-title{font-size:14px;font-weight:700;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .col-title .badge{
+    background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;
+  }
+
+  #dropzone{
+    border:1.5px dashed #b9bcb5;border-radius:var(--radius);padding:20px 14px;
+    text-align:center;color:var(--sub);font-size:13px;cursor:pointer;
+    transition:border-color .15s, background .15s;margin-bottom:14px;
+  }
+  #dropzone.drag{border-color:var(--accent);background:var(--accent-soft);}
+  #dropzone strong{color:var(--ink);display:block;margin-bottom:3px;}
+  #fileInput{display:none;}
+
+  .fixed-helper{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    background:var(--warn-soft);border:1px solid #ecdcb0;border-radius:8px;
+    padding:10px 12px;margin-bottom:14px;font-size:12px;color:#6b5218;
+  }
+  .fixed-helper .txt{width:100%;line-height:1.55;}
+  .fixed-helper input[type=number]{
+    width:56px;border:1px solid #ddc78e;border-radius:6px;padding:5px 6px;font-size:12.5px;
+  }
+  .fixed-helper .mini-btn{margin-left:auto;}
+
+  #list{list-style:none;margin:0;padding:0;}
+  .item{
+    display:flex;gap:10px;padding:10px;border:1px solid var(--line);border-radius:8px;
+    margin-bottom:8px;background:#fbfaf8;align-items:center;
+  }
+  .item.dragging{opacity:.4;}
+  .item .handle{cursor:grab;color:#b7bab3;font-size:15px;user-select:none;flex-shrink:0;}
+  .item .order{
+    width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;
+    font-size:10.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .item img.thumb{width:38px;border-radius:4px;border:1px solid var(--line);flex-shrink:0;object-fit:cover;object-position:top;}
+  .item .meta{flex:1;min-width:0;}
+  .item .fname{font-size:11.5px;color:var(--sub);word-break:break-all;line-height:1.4;}
+  .item .fname b{color:var(--ink);font-weight:600;}
+  .item .remove{color:var(--danger);font-size:11.5px;cursor:pointer;border:none;background:none;padding:4px;flex-shrink:0;}
+  .empty-list{color:var(--sub);font-size:12.5px;text-align:center;padding:16px 0;}
+
+  /* ---- right column: live composite + per-seam adjust ---- */
+  .right-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .right-head .col-title{margin:0;flex:1;}
+  .zoom-controls{display:flex;align-items:center;gap:6px;}
+  .zoom-controls button{
+    border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 9px;font-size:11.5px;cursor:pointer;color:var(--ink);
+  }
+  .zoom-controls button.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  button.primary{
+    background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
+  }
+  button.primary:disabled{background:#c8cbc4;cursor:not-allowed;}
+  button.secondary{
+    background:#fff;border:1px solid var(--line);border-radius:8px;
+    padding:9px 16px;font-size:13px;cursor:pointer;color:var(--ink);white-space:nowrap;
+  }
+  button.secondary:hover{border-color:var(--accent);color:var(--accent);}
+
+  #stitchStage{
+    border:1px solid var(--line);border-radius:8px;background:#eeece7;
+    overflow:auto;max-height:74vh;display:flex;justify-content:center;padding:10px;
+  }
+  #stageInner{position:relative;display:inline-block;line-height:0;}
+  #resultImg{display:block;user-select:none;-webkit-user-drag:none;}
+  .empty-stage{color:var(--sub);font-size:13px;text-align:center;padding:60px 20px;width:100%;}
+
+  /* draggable seam handle overlaid directly on the merged image */
+  .seam-handle{
+    position:absolute;left:0;right:0;height:22px;margin-top:-11px;
+    cursor:ns-resize;display:flex;align-items:center;justify-content:center;touch-action:none;
+    z-index:5;
+  }
+  .seam-handle .line{
+    position:absolute;left:0;right:0;top:50%;height:0;border-top:2px dashed var(--accent);
+    transform:translateY(-1px);pointer-events:none;
+  }
+  .seam-handle .grip{
+    position:relative;background:var(--accent);color:#fff;font-size:11px;font-weight:700;
+    border-radius:5px;padding:2px 9px;display:flex;align-items:center;gap:5px;
+    box-shadow:0 1px 4px rgba(0,0,0,.25);white-space:nowrap;
+  }
+  .seam-handle .grip::before{content:"↕";font-size:11px;}
+  .seam-handle:hover .line, .seam-handle.active .line{border-top-color:#1f4a37;}
+  .seam-handle.active .grip{background:#1f4a37;}
+
+  #maskToggleBtn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  #annotToggleBtn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  #stageInner.mask-mode{cursor:crosshair;}
+  #stageInner.mask-mode .seam-handle{pointer-events:none;opacity:.3;}
+  #stageInner.annot-mode{cursor:crosshair;}
+  #stageInner.annot-mode .seam-handle{pointer-events:none;opacity:.3;}
+
+  .annot-toolbar{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    background:#f3f1ec;border:1px solid var(--line);border-radius:8px;
+    padding:10px 12px;margin-bottom:12px;font-size:12.5px;color:var(--sub);
+  }
+  .annot-toolbar label{display:flex;align-items:center;gap:6px;white-space:nowrap;}
+  .annot-toolbar input[type=color]{width:28px;height:28px;border:1px solid var(--line);border-radius:6px;padding:0;cursor:pointer;background:none;}
+  .annot-toolbar input[type=range]{width:100px;accent-color:var(--accent);}
+  .tool-chip-group{display:flex;gap:4px;}
+  .tool-chip{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;color:var(--ink);}
+  .tool-chip.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .annot-box-draft{
+    position:absolute;border-width:2px;border-style:dashed;background:rgba(255,255,255,.08);pointer-events:none;z-index:8;
+  }
+  .annot-box-outline{
+    position:absolute;border-width:2px;border-style:dashed;background:transparent;z-index:7;cursor:move;touch-action:none;
+  }
+  .annot-text-outline{
+    position:absolute;border:2px dashed rgba(0,0,0,.4);z-index:7;cursor:move;touch-action:none;
+  }
+  .annot-mini-toolbar{
+    position:absolute;top:-42px;left:-2px;display:flex;align-items:center;gap:4px;
+    background:#fff;border:1px solid var(--line);border-radius:6px;padding:3px 4px;
+    box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap;z-index:9;cursor:default;
+  }
+  .annot-mini-toolbar::after{
+    content:"";position:absolute;left:10px;bottom:-5px;width:0;height:0;
+    border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid var(--line);
+  }
+  .annot-box-outline.toolbar-below .annot-mini-toolbar,
+  .annot-text-outline.toolbar-below .annot-mini-toolbar{
+    top:auto;bottom:-42px;
+  }
+  .annot-box-outline.toolbar-below .annot-mini-toolbar::after,
+  .annot-text-outline.toolbar-below .annot-mini-toolbar::after{
+    bottom:auto;top:-5px;border-top:none;border-bottom:5px solid var(--line);
+  }
+  .annot-mini-toolbar input[type=color]{width:18px;height:18px;border:none;padding:0;cursor:pointer;background:none;}
+  .annot-mini-toolbar input[type=number]{width:42px;border:1px solid var(--line);border-radius:4px;font-size:11px;padding:1px 3px;}
+  .annot-mini-toolbar .mbtn{
+    width:19px;height:19px;border-radius:4px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:11px;border:none;background:#f1f0ec;color:var(--ink);padding:0;
+  }
+  .annot-mini-toolbar .mbtn.del{background:var(--danger);color:#fff;}
+
+  .text-input-overlay{
+    position:absolute;min-width:120px;min-height:30px;padding:4px 6px;
+    border:2px dashed #888;background:rgba(255,255,255,.95);
+    font-size:14px;line-height:1.3;resize:both;outline:none;z-index:10;font-family:inherit;
+  }
+  .mask-draft{
+    position:absolute;background:rgba(0,0,0,.55);border:2px dashed #fff;pointer-events:none;z-index:8;
+  }
+  .mask-outline{
+    position:absolute;border:2px dashed #e0a400;background:rgba(224,164,0,.12);z-index:7;cursor:move;touch-action:none;
+  }
+  .mask-outline .del{
+    position:absolute;top:-9px;right:-9px;width:19px;height:19px;border-radius:50%;
+    background:var(--danger);color:#fff;font-size:11px;line-height:1;display:flex;
+    align-items:center;justify-content:center;cursor:pointer;border:1.5px solid #fff;
+  }
+
+  #seamList{margin-top:16px;}
+  .seam-block{
+    border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:#fbfaf8;
+  }
+  .seam-block .seam-title{font-size:12.5px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .seam-block .seam-title .n{
+    background:var(--accent);color:#fff;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:600;
+  }
+  .crop-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .crop-row label{font-size:12px;color:var(--sub);white-space:nowrap;min-width:88px;}
+  .crop-row input[type=range]{flex:1;min-width:100px;accent-color:var(--accent);}
+  .crop-row.fixed input[type=range]{accent-color:var(--warn);}
+  .crop-row.bottom input[type=range]{accent-color:#3f6fb0;}
+  .crop-row input[type=number]{width:58px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;font-size:12px;}
+  .mini-btn{
+    border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 9px;font-size:11.5px;cursor:pointer;color:var(--ink);white-space:nowrap;
+  }
+  .mini-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .mini-btn.detecting{color:var(--sub);cursor:progress;}
+  .seam-preview-box{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff;margin-top:8px;display:flex;justify-content:center;}
+  .seam-preview-box canvas{display:block;}
+
+  #status{font-size:12px;color:var(--sub);margin-top:6px;min-height:16px;}
+  .hint{font-size:11.5px;color:var(--sub);margin-top:10px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>화면 캡처 이어붙이기</h1>
+    <p>스크롤 캡처한 이미지를 순서대로 올리면 자동으로 이어붙여 오른쪽에 바로 보여드려요. 이음매를 다듬고 나면 바로 PNG로 저장하면 됩니다.</p>
+  </header>
+
+  <div class="panel">
+    <div class="workspace">
+      <!-- LEFT: upload + order -->
+      <div class="left-col">
+        <div class="col-title"><span class="badge">1</span>업로드 &amp; 순서</div>
+
+        <div id="dropzone">
+          <strong>클릭하거나 이미지를 끌어다 놓으세요</strong>
+          캡처한 순서대로 선택하면 그대로 정렬됩니다
+        </div>
+        <input type="file" id="fileInput" accept="image/*" multiple>
+
+        <div class="fixed-helper">
+          <div class="txt"><b>상단바가 매번 찍혀서 지저분해 보이면:</b> 상태표시줄+헤더 높이(px)를 입력하고 아래에서 전체 적용하세요.</div>
+          <input type="number" id="globalFixedInput" min="0" value="0"> px
+          <button class="mini-btn" id="applyFixedAllBtn">전체 적용</button>
+        </div>
+
+        <ul id="list"></ul>
+        <div class="empty-list" id="emptyListMsg">아직 올라온 이미지가 없어요.</div>
+        <div id="status"></div>
+      </div>
+
+      <!-- RIGHT: live merged preview + seam adjust -->
+      <div class="right-col">
+        <div class="right-head">
+          <div class="col-title"><span class="badge">2</span>연결 미리보기 &amp; 이음매 수정</div>
+          <div class="zoom-controls" id="zoomControls">
+            <button data-zoom="fit" class="active">한눈에 보기</button>
+            <button data-zoom="100">100%</button>
+            <button data-zoom="50">50%</button>
+          </div>
+          <button class="secondary" id="maskToggleBtn">마스킹</button>
+          <button class="secondary" id="maskClearBtn" style="display:none;">마스킹 지우기</button>
+          <button class="secondary" id="annotToggleBtn">박스/텍스트</button>
+          <button class="secondary" id="annotClearBtn" style="display:none;">주석 지우기</button>
+          <button class="secondary" id="resetBtn">초기화</button>
+          <button class="primary" id="downloadBtn" disabled>PNG로 저장</button>
+        </div>
+
+        <div class="annot-toolbar" id="annotToolbar" style="display:none;">
+          <div class="tool-chip-group">
+            <button type="button" class="tool-chip active" id="toolBoxBtn">▭ 박스</button>
+            <button type="button" class="tool-chip" id="toolTextBtn">T 텍스트</button>
+          </div>
+          <label>박스 색상 <input type="color" id="boxColorInput" value="#e02424"></label>
+          <label>텍스트 색상 <input type="color" id="textColorInput" value="#e02424"></label>
+          <label>텍스트 크기 <input type="range" id="textSizeRange" min="14" max="72" value="28"><span id="textSizeVal">28px</span></label>
+        </div>
+
+        <div id="stitchStage">
+          <div class="empty-stage" id="emptyStage">이미지를 2장 이상 올리면 여기에 이어붙인 모습이 실시간으로 나타나요.</div>
+          <div id="stageInner">
+            <img id="resultImg" style="display:none;">
+          </div>
+        </div>
+        <div class="hint" id="dragHint" style="display:none;">이미지 위 초록 점선을 위아래로 드래그하면 바로 위 이미지의 하단이 잘려요 (아래로 당기면 덜 자르고, 위로 당기면 더 잘라요). 아래쪽 이음매 조정 박스에서 반대편(아래 이미지 상단)도 따로 자를 수 있어요.</div>
+        <div class="hint" id="maskHint" style="display:none;">마스킹 모드에서는 가리고 싶은 부분을 이미지 위에서 드래그하면 흐림 처리로 덮여요. 박스 안쪽을 드래그하면 위치를 옮길 수 있고, 우측 상단 ✕로 지울 수 있어요. 이음매 조정을 먼저 끝낸 뒤 마지막 단계로 사용하는 걸 추천해요.</div>
+        <div class="hint" id="annotHint" style="display:none;">박스/텍스트 모드에서는 위에서 도구를 고른 뒤 이미지 위에 드래그(박스)하거나 클릭(텍스트)하세요. 만든 항목 위에 뜨는 작은 도구모음에서 색상·크기 변경, 수정(✎), 삭제(✕)를 할 수 있고, 항목 안쪽을 드래그하면 위치도 옮길 수 있어요.</div>
+
+        <div id="seamList"></div>
+        <div class="hint" id="hintText"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const listEl = document.getElementById('list');
+const emptyListMsg = document.getElementById('emptyListMsg');
+const statusEl = document.getElementById('status');
+const resetBtn = document.getElementById('resetBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const resultImg = document.getElementById('resultImg');
+const emptyStage = document.getElementById('emptyStage');
+const stitchStage = document.getElementById('stitchStage');
+const zoomControls = document.getElementById('zoomControls');
+const globalFixedInput = document.getElementById('globalFixedInput');
+const applyFixedAllBtn = document.getElementById('applyFixedAllBtn');
+const seamListEl = document.getElementById('seamList');
+const hintText = document.getElementById('hintText');
+const maskToggleBtn = document.getElementById('maskToggleBtn');
+const maskClearBtn = document.getElementById('maskClearBtn');
+const maskHint = document.getElementById('maskHint');
+const dragHint = document.getElementById('dragHint');
+const annotToggleBtn = document.getElementById('annotToggleBtn');
+const annotClearBtn = document.getElementById('annotClearBtn');
+const annotToolbar = document.getElementById('annotToolbar');
+const annotHint = document.getElementById('annotHint');
+const toolBoxBtn = document.getElementById('toolBoxBtn');
+const toolTextBtn = document.getElementById('toolTextBtn');
+const boxColorInput = document.getElementById('boxColorInput');
+const textColorInput = document.getElementById('textColorInput');
+const textSizeRange = document.getElementById('textSizeRange');
+const textSizeVal = document.getElementById('textSizeVal');
+
+// each entry: {id, file, img, fixedTop, overlap}
+let entries = [];
+let idSeq = 0;
+let resultBlobURL = null;
+let resultDims = null;
+let currentZoom = 'fit';
+let composeTimer = null;
+let seamControls = {};   // entry.id -> {fixedRange, fixedNum, range, num, seamCanvas, maxOverlapFn}
+let bottomCropControls = {}; // entry.id -> {cropBottomRange, cropBottomNum, syncCropBottom, maxCropBottomFn} (controls THIS entry's own bottom trim)
+let seamCumHeights = []; // [{entry, cumY}] cumulative natural-px height right before this entry
+let activeDrag = null;   // {upperEntry, lowerEntry, ctrl, startY, startCropBottom, scale, handleEl}
+
+// masking
+let masks = [];          // [{id, x, y, w, h}] in composite natural-px coordinates
+let maskIdSeq = 0;
+let maskMode = false;
+let maskDraft = null;    // {startClientX, startClientY, el}
+
+// box/text annotations
+let annotations = [];    // [{id, type:'box'|'text', x, y, w, h, color, text, fontSize, strokeWidth}]
+let annotIdSeq = 0;
+let annotationMode = false;
+let annotTool = 'box';   // 'box' | 'text'
+let boxColor = '#e02424';
+let textColor = '#e02424';
+let textSize = 28;
+let annotDraft = null;
+let activeAnnotMove = null;
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+function handleFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+  let remaining = files.length;
+  const newlyAdded = [];
+  files.forEach(file => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        const entry = { id: idSeq++, file, img, fixedTop: 0, overlap: 0, cropBottom: 0 };
+        entries.push(entry);
+        newlyAdded.push(entry);
+        remaining--;
+        if (remaining === 0) {
+          // auto-detect overlap for any new image that has a predecessor
+          newlyAdded.forEach(e => {
+            const idx = entries.indexOf(e);
+            if (idx > 0) {
+              e.overlap = detectOverlap(entries[idx - 1].img, e.img, e.fixedTop);
+            }
+          });
+          renderAll();
+        }
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+applyFixedAllBtn.addEventListener('click', () => {
+  const v = Math.max(0, parseInt(globalFixedInput.value, 10) || 0);
+  entries.forEach((e, idx) => {
+    if (idx !== 0) {
+      e.fixedTop = v;
+      e.overlap = detectOverlap(entries[idx - 1].img, e.img, v);
+    }
+  });
+  renderAll();
+  statusEl.textContent = `모든 이미지(첫 장 제외)에 고정 영역 ${v}px를 적용하고 겹침을 다시 감지했습니다.`;
+});
+
+// ---------------- LEFT: order list ----------------
+function renderList() {
+  listEl.innerHTML = '';
+  emptyListMsg.style.display = entries.length ? 'none' : 'block';
+
+  entries.forEach((entry, idx) => {
+    const li = document.createElement('li');
+    li.className = 'item';
+    li.draggable = true;
+    li.dataset.id = entry.id;
+    li.innerHTML = `
+      <span class="handle">⠿</span>
+      <span class="order">${idx + 1}</span>
+      <img class="thumb" src="${entry.img.src}">
+      <div class="meta">
+        <div class="fname"><b>${idx === 0 ? '기준 이미지' : idx + 1 + '번째'}</b><br>${entry.img.width}×${entry.img.height}px</div>
+      </div>
+      <button class="remove" title="삭제">✕</button>
+    `;
+    li.querySelector('.remove').addEventListener('click', () => {
+      entries = entries.filter(e => e.id !== entry.id);
+      renderAll();
+    });
+    li.addEventListener('dragstart', () => li.classList.add('dragging'));
+    li.addEventListener('dragend', () => { li.classList.remove('dragging'); reorderFromDOM(); });
+    li.addEventListener('dragover', e => {
+      e.preventDefault();
+      const dragging = listEl.querySelector('.dragging');
+      if (!dragging || dragging === li) return;
+      const rect = li.getBoundingClientRect();
+      const after = (e.clientY - rect.top) > rect.height / 2;
+      li.parentNode.insertBefore(dragging, after ? li.nextSibling : li);
+    });
+    listEl.appendChild(li);
+  });
+}
+
+function reorderFromDOM() {
+  const ids = Array.from(listEl.children).map(li => parseInt(li.dataset.id, 10));
+  entries.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  renderAll();
+}
+
+// ---------------- RIGHT: seam adjust blocks ----------------
+function renderSeamBlocks() {
+  seamListEl.innerHTML = '';
+  seamControls = {};
+  bottomCropControls = {};
+  if (entries.length < 2) return;
+
+  entries.forEach((entry, idx) => {
+    if (idx === 0) return;
+    const prevEntry = entries[idx - 1];
+    const prevOwnTopCrop = (idx - 1 > 0) ? Math.min(prevEntry.fixedTop + prevEntry.overlap, prevEntry.img.height - 1) : 0;
+    const maxCropBottom = Math.max(0, prevEntry.img.height - prevOwnTopCrop - 10);
+    const maxFixed = Math.max(0, entry.img.height - 40);
+    const maxOverlap = Math.max(0, entry.img.height - entry.fixedTop - 10);
+
+    const block = document.createElement('div');
+    block.className = 'seam-block';
+    block.innerHTML = `
+      <div class="seam-title"><span class="n">${idx}↔${idx + 1}</span>이음매 조정</div>
+      <div class="crop-row bottom">
+        <label>▲ 위 이미지 하단</label>
+        <input type="range" min="0" max="${maxCropBottom}" value="${prevEntry.cropBottom}" class="cropBottomRange">
+        <input type="number" min="0" max="${maxCropBottom}" value="${prevEntry.cropBottom}" class="cropBottomNum"> px
+      </div>
+      <div class="crop-row fixed">
+        <label>① 아래 고정 영역</label>
+        <input type="range" min="0" max="${maxFixed}" value="${entry.fixedTop}" class="fixedRange">
+        <input type="number" min="0" max="${maxFixed}" value="${entry.fixedTop}" class="fixedNum"> px
+      </div>
+      <div class="crop-row">
+        <label>② 아래 겹침 자르기</label>
+        <input type="range" min="0" max="${maxOverlap}" value="${entry.overlap}" class="overlapRange">
+        <input type="number" min="0" max="${maxOverlap}" value="${entry.overlap}" class="overlapNum"> px
+        <button class="mini-btn detectBtn">자동 재감지</button>
+      </div>
+      <div class="seam-preview-box"><canvas class="seamCanvas"></canvas></div>
+    `;
+
+    const cropBottomRange = block.querySelector('.cropBottomRange');
+    const cropBottomNum = block.querySelector('.cropBottomNum');
+    const fixedRange = block.querySelector('.fixedRange');
+    const fixedNum = block.querySelector('.fixedNum');
+    const range = block.querySelector('.overlapRange');
+    const num = block.querySelector('.overlapNum');
+    const seamCanvas = block.querySelector('.seamCanvas');
+
+    function syncCropBottom(v) {
+      v = Math.max(0, Math.min(maxCropBottom, v));
+      prevEntry.cropBottom = v;
+      cropBottomRange.value = v; cropBottomNum.value = v;
+      drawSeamPreview(prevEntry, entry, seamCanvas);
+      scheduleCompose();
+    }
+    function syncFixed(v) {
+      v = Math.max(0, Math.min(maxFixed, v));
+      entry.fixedTop = v;
+      fixedRange.value = v; fixedNum.value = v;
+      drawSeamPreview(prevEntry, entry, seamCanvas);
+      scheduleCompose();
+    }
+    function syncOverlap(v) {
+      v = Math.max(0, Math.min(maxOverlap, v));
+      entry.overlap = v;
+      range.value = v; num.value = v;
+      drawSeamPreview(prevEntry, entry, seamCanvas);
+      scheduleCompose();
+    }
+    cropBottomRange.addEventListener('input', () => syncCropBottom(parseInt(cropBottomRange.value, 10)));
+    cropBottomNum.addEventListener('input', () => syncCropBottom(parseInt(cropBottomNum.value, 10) || 0));
+    fixedRange.addEventListener('input', () => syncFixed(parseInt(fixedRange.value, 10)));
+    fixedNum.addEventListener('input', () => syncFixed(parseInt(fixedNum.value, 10) || 0));
+    range.addEventListener('input', () => syncOverlap(parseInt(range.value, 10)));
+    num.addEventListener('input', () => syncOverlap(parseInt(num.value, 10) || 0));
+
+    block.querySelector('.detectBtn').addEventListener('click', async (ev) => {
+      const btn = ev.target;
+      btn.classList.add('detecting');
+      btn.textContent = '감지 중...';
+      await new Promise(r => setTimeout(r, 20));
+      const detected = detectOverlap(prevEntry.img, entry.img, entry.fixedTop);
+      syncOverlap(detected);
+      range.max = Math.max(maxOverlap, detected);
+      btn.classList.remove('detecting');
+      btn.textContent = '자동 재감지';
+      statusEl.textContent = detected > 0
+        ? `${idx + 1}번째 이미지: 약 ${detected}px 겹침을 감지했습니다.`
+        : `${idx + 1}번째 이미지: 겹치는 구간을 찾지 못했어요. 미리보기를 보며 직접 조절해주세요.`;
+    });
+
+    seamListEl.appendChild(block);
+    requestAnimationFrame(() => drawSeamPreview(prevEntry, entry, seamCanvas));
+
+    seamControls[entry.id] = {
+      fixedRange, fixedNum, range, num, seamCanvas, syncOverlap,
+      maxOverlapFn: () => Math.max(0, entry.img.height - entry.fixedTop - 10)
+    };
+    bottomCropControls[prevEntry.id] = {
+      cropBottomRange, cropBottomNum, seamCanvas, syncCropBottom,
+      maxCropBottomFn: () => {
+        const ownTop = (idx - 1 > 0) ? Math.min(prevEntry.fixedTop + prevEntry.overlap, prevEntry.img.height - 1) : 0;
+        return Math.max(0, prevEntry.img.height - ownTop - 10);
+      }
+    };
+  });
+}
+
+function drawSeamPreview(prevEntry, entry, canvas) {
+  const W = Math.min(prevEntry.img.width, entry.img.width);
+  const stripH = 80;
+  const displayW = Math.min(520, W);
+  const scale = displayW / W;
+
+  canvas.width = displayW;
+  canvas.height = Math.round(stripH * 2 * scale) + 3;
+  const ctx = canvas.getContext('2d');
+
+  const prevBottomCut = Math.min(prevEntry.cropBottom || 0, prevEntry.img.height - 1);
+  const prevVisibleBottom = prevEntry.img.height - prevBottomCut;
+  const prevSrcY = Math.max(0, prevVisibleBottom - stripH);
+  ctx.drawImage(prevEntry.img, 0, prevSrcY, W, Math.min(stripH, prevVisibleBottom), 0, 0, displayW, Math.round(stripH * scale));
+
+  ctx.strokeStyle = '#2f6b4f';
+  ctx.setLineDash([6, 4]);
+  ctx.lineWidth = 2;
+  const midY = Math.round(stripH * scale) + 1;
+  ctx.beginPath();
+  ctx.moveTo(0, midY);
+  ctx.lineTo(displayW, midY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const cropTop = Math.min(entry.fixedTop + entry.overlap, entry.img.height - 1);
+  ctx.drawImage(entry.img, 0, cropTop, W, stripH, 0, midY + 2, displayW, Math.round(stripH * scale));
+}
+
+// ---------------- overlap auto-detection ----------------
+function detectOverlap(prevImg, currImg, fixedTop) {
+  fixedTop = fixedTop || 0;
+  const W = Math.min(prevImg.width, currImg.width);
+  const contentH = currImg.height - fixedTop;
+  const maxOverlap = Math.min(prevImg.height, contentH);
+  const minOverlap = 20;
+  if (maxOverlap <= minOverlap) return 0;
+
+  const sampleCols = 28;
+  const xs = [];
+  for (let i = 0; i < sampleCols; i++) xs.push(Math.floor((i + 0.5) * W / sampleCols));
+
+  const c1 = document.createElement('canvas');
+  c1.width = W; c1.height = maxOverlap;
+  const ctx1 = c1.getContext('2d');
+  ctx1.drawImage(prevImg, 0, prevImg.height - maxOverlap, W, maxOverlap, 0, 0, W, maxOverlap);
+  const dataA = ctx1.getImageData(0, 0, W, maxOverlap).data;
+
+  const c2 = document.createElement('canvas');
+  c2.width = W; c2.height = maxOverlap;
+  const ctx2 = c2.getContext('2d');
+  ctx2.drawImage(currImg, 0, fixedTop, W, maxOverlap, 0, 0, W, maxOverlap);
+  const dataB = ctx2.getImageData(0, 0, W, maxOverlap).data;
+
+  function luminance(data, x, y) {
+    const i = (y * W + x) * 4;
+    return 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  }
+
+  let best = 0, bestDiff = Infinity;
+  // coarse-to-fine search so a full-height scan (now that the old 500/600px cap is gone) stays fast
+  const coarseStep = maxOverlap > 700 ? 8 : 2;
+  const rowStep = maxOverlap > 700 ? 4 : 2;
+
+  function scoreOverlap(overlap) {
+    let diffSum = 0, count = 0;
+    const startA = maxOverlap - overlap;
+    for (let r = 0; r < overlap; r += rowStep) {
+      const ay = startA + r, by = r;
+      for (let xi = 0; xi < xs.length; xi++) {
+        const x = xs[xi];
+        diffSum += Math.abs(luminance(dataA, x, ay) - luminance(dataB, x, by));
+        count++;
+      }
+    }
+    return diffSum / count;
+  }
+
+  for (let overlap = maxOverlap; overlap >= minOverlap; overlap -= coarseStep) {
+    const avgDiff = scoreOverlap(overlap);
+    if (avgDiff < bestDiff) { bestDiff = avgDiff; best = overlap; }
+  }
+  // refine ±coarseStep around the coarse winner at full row resolution
+  if (coarseStep > 2) {
+    const lo = Math.max(minOverlap, best - coarseStep);
+    const hi = Math.min(maxOverlap, best + coarseStep);
+    for (let overlap = lo; overlap <= hi; overlap += 1) {
+      const startA = maxOverlap - overlap;
+      let diffSum = 0, count = 0;
+      for (let r = 0; r < overlap; r += 2) {
+        const ay = startA + r, by = r;
+        for (let xi = 0; xi < xs.length; xi++) {
+          const x = xs[xi];
+          diffSum += Math.abs(luminance(dataA, x, ay) - luminance(dataB, x, by));
+          count++;
+        }
+      }
+      const avgDiff = diffSum / count;
+      if (avgDiff < bestDiff) { bestDiff = avgDiff; best = overlap; }
+    }
+  }
+  if (bestDiff > 12) return 0;
+  return best;
+}
+
+// ---------------- live compose (right side) ----------------
+function scheduleCompose() {
+  clearTimeout(composeTimer);
+  composeTimer = setTimeout(composeNow, 120);
+}
+
+function composeNow(rebuildHandles, rebuildMasks, rebuildAnnots) {
+  if (rebuildHandles === undefined) rebuildHandles = true;
+  if (rebuildMasks === undefined) rebuildMasks = true;
+  if (rebuildAnnots === undefined) rebuildAnnots = true;
+  if (entries.length < 1) {
+    resultImg.style.display = 'none';
+    emptyStage.style.display = 'block';
+    emptyStage.textContent = '이미지를 올리면 여기에 나타나요. 1장만 올려서 마스킹만 하거나, 2장 이상 올려서 이어붙일 수도 있어요.';
+    downloadBtn.disabled = true;
+    hintText.textContent = '';
+    return;
+  }
+
+  const W = entries[0].img.width;
+
+  // per-entry visible source rect: srcTop (skipped from top, idx>0 only) and srcH (after top+bottom trims)
+  function visibleRect(entry, idx) {
+    const srcTop = idx === 0 ? 0 : Math.min(entry.fixedTop + entry.overlap, entry.img.height - 1);
+    const bottomCut = Math.min(entry.cropBottom || 0, entry.img.height - srcTop - 1);
+    const srcH = Math.max(1, entry.img.height - srcTop - bottomCut);
+    return { srcTop, srcH };
+  }
+
+  let totalH = 0;
+  entries.forEach((entry, idx) => {
+    const scale = W / entry.img.width;
+    totalH += Math.round(visibleRect(entry, idx).srcH * scale);
+  });
+  totalH = Math.round(totalH);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = totalH;
+  const ctx = canvas.getContext('2d');
+
+  let y = 0;
+  seamCumHeights = []; // reset: one entry per seam, {upperEntry, lowerEntry, cumY} = height right before lowerEntry starts
+  entries.forEach((entry, idx) => {
+    const scale = W / entry.img.width;
+    const { srcTop, srcH } = visibleRect(entry, idx);
+    if (idx > 0) seamCumHeights.push({ upperEntry: entries[idx - 1], lowerEntry: entry, cumY: y });
+    const drawH = Math.round(srcH * scale);
+    ctx.drawImage(entry.img, 0, srcTop, entry.img.width, srcH, 0, y, W, drawH);
+    y += drawH;
+  });
+
+  // bake masking boxes as a blur, sourced from the un-masked pixels drawn just above,
+  // so it's permanent in the saved PNG rather than a CSS overlay
+  const BLUR_PX = 16, PAD = 18;
+  masks.forEach(m => {
+    const mx = Math.max(0, Math.min(m.x, W));
+    const my = Math.max(0, Math.min(m.y, totalH));
+    const mw = Math.max(0, Math.min(m.w, W - mx));
+    const mh = Math.max(0, Math.min(m.h, totalH - my));
+    if (mw <= 0 || mh <= 0) return;
+    const sx = Math.max(0, mx - PAD), sy = Math.max(0, my - PAD);
+    const ex = Math.min(W, mx + mw + PAD), ey = Math.min(totalH, my + mh + PAD);
+    const sw = ex - sx, sh = ey - sy;
+    if (sw <= 0 || sh <= 0) return;
+    const tmp = document.createElement('canvas');
+    tmp.width = sw; tmp.height = sh;
+    const tctx = tmp.getContext('2d');
+    tctx.filter = `blur(${BLUR_PX}px)`;
+    tctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    ctx.drawImage(tmp, mx - sx, my - sy, mw, mh, mx, my, mw, mh);
+  });
+
+  // bake box/text annotations directly into the pixels
+  annotations.forEach(a => {
+    if (a.type === 'box') {
+      const sw2 = a.strokeWidth || 6;
+      ctx.save();
+      ctx.strokeStyle = a.color;
+      ctx.lineWidth = sw2;
+      ctx.strokeRect(a.x + sw2 / 2, a.y + sw2 / 2, Math.max(0, a.w - sw2), Math.max(0, a.h - sw2));
+      ctx.restore();
+    } else if (a.type === 'text') {
+      ctx.save();
+      ctx.fillStyle = a.color;
+      ctx.font = `700 ${a.fontSize}px 'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif`;
+      ctx.textBaseline = 'top';
+      (a.text || '').split('\n').forEach((line, i) => {
+        ctx.fillText(line, a.x, a.y + i * Math.round(a.fontSize * 1.3));
+      });
+      ctx.restore();
+    }
+  });
+
+  canvas.toBlob(blob => {
+    if (resultBlobURL) URL.revokeObjectURL(resultBlobURL);
+    resultBlobURL = URL.createObjectURL(blob);
+    resultDims = { w: canvas.width, h: canvas.height };
+    resultImg.src = resultBlobURL;
+    resultImg.style.display = 'block';
+    emptyStage.style.display = 'none';
+    downloadBtn.disabled = false;
+    applyZoom(currentZoom);
+    hintText.textContent = entries.length > 1
+      ? `${canvas.width} × ${canvas.height}px · ${(blob.size / 1024 / 1024).toFixed(2)}MB — 이미지 위 초록 점선을 드래그해서 위 이미지 하단을 바로 다듬을 수 있어요.`
+      : `${canvas.width} × ${canvas.height}px · ${(blob.size / 1024 / 1024).toFixed(2)}MB — 위 "마스킹" 버튼을 켜고 가리고 싶은 부분을 드래그해보세요.`;
+    dragHint.style.display = entries.length > 1 ? 'block' : 'none';
+    if (rebuildHandles) renderSeamHandles();
+    if (rebuildMasks) renderMaskOverlays();
+    if (rebuildAnnots) renderAnnotationOverlays();
+  }, 'image/png');
+}
+
+// ---------------- draggable seam handles overlaid on the merged image ----------------
+const stageInner = document.getElementById('stageInner');
+
+function renderSeamHandles() {
+  stageInner.querySelectorAll('.seam-handle').forEach(el => el.remove());
+  if (!resultDims || !resultDims.h) return;
+
+  seamCumHeights.forEach(({ upperEntry, lowerEntry, cumY }) => {
+    const handle = document.createElement('div');
+    handle.className = 'seam-handle';
+    handle.style.top = (cumY / resultDims.h * 100) + '%';
+    handle.innerHTML = `<div class="line"></div><div class="grip">▲${upperEntry.cropBottom || 0}px</div>`;
+    handle.addEventListener('pointerdown', ev => startSeamDrag(ev, upperEntry, lowerEntry, handle));
+    stageInner.appendChild(handle);
+  });
+}
+
+function startSeamDrag(ev, upperEntry, lowerEntry, handleEl) {
+  if (maskMode) return; // masking mode owns pointer interactions on the image while active
+  ev.preventDefault();
+  ev.stopPropagation();
+  const ctrl = bottomCropControls[upperEntry.id];
+  if (!ctrl) return;
+  const rect = stageInner.getBoundingClientRect();
+  const scale = resultDims.h / rect.height; // natural px per displayed px, at drag start
+  activeDrag = { upperEntry, lowerEntry, ctrl, startY: ev.clientY, startCropBottom: upperEntry.cropBottom || 0, scale, handleEl };
+  handleEl.classList.add('active');
+  handleEl.setPointerCapture && handleEl.setPointerCapture(ev.pointerId);
+  window.addEventListener('pointermove', onSeamDrag);
+  window.addEventListener('pointerup', endSeamDrag);
+}
+
+function onSeamDrag(ev) {
+  if (!activeDrag) return;
+  const { upperEntry, ctrl, startY, startCropBottom, scale, handleEl } = activeDrag;
+  const deltaNatural = (ev.clientY - startY) * scale; // drag down = show more of upper image = less cropped
+  const maxCropBottom = ctrl.maxCropBottomFn();
+  const v = Math.max(0, Math.min(maxCropBottom, Math.round(startCropBottom - deltaNatural)));
+  if (v === upperEntry.cropBottom) return;
+  upperEntry.cropBottom = v;
+  ctrl.cropBottomRange.value = v; ctrl.cropBottomNum.value = v;
+  const grip = handleEl.querySelector('.grip');
+  if (grip) grip.textContent = '▲' + v + 'px';
+
+  clearTimeout(composeTimer); // drag takes over from the debounced slider path
+  if (!activeDrag.rafPending) {
+    activeDrag.rafPending = true;
+    requestAnimationFrame(() => {
+      if (!activeDrag) return;
+      activeDrag.rafPending = false;
+      composeNow(false); // quiet: update the big image live, don't rebuild handle DOM mid-drag
+    });
+  }
+}
+
+function endSeamDrag() {
+  if (!activeDrag) return;
+  const { upperEntry, lowerEntry, ctrl, handleEl } = activeDrag;
+  handleEl.classList.remove('active');
+  drawSeamPreview(upperEntry, lowerEntry, ctrl.seamCanvas);
+  activeDrag = null;
+  window.removeEventListener('pointermove', onSeamDrag);
+  window.removeEventListener('pointerup', endSeamDrag);
+  composeNow(true); // final recompose + rebuild handle positions at their true, settled spots
+}
+
+function applyZoom(mode) {
+  currentZoom = mode;
+  Array.from(zoomControls.children).forEach(btn => btn.classList.toggle('active', btn.dataset.zoom === mode));
+  if (!resultDims) return;
+  if (mode === 'fit') {
+    resultImg.style.maxWidth = '100%';
+    resultImg.style.width = 'auto';
+    resultImg.style.maxHeight = '70vh';
+  } else {
+    const pct = parseInt(mode, 10) / 100;
+    resultImg.style.maxHeight = 'none';
+    resultImg.style.maxWidth = 'none';
+    resultImg.style.width = Math.round(resultDims.w * pct) + 'px';
+  }
+}
+zoomControls.addEventListener('click', e => {
+  const btn = e.target.closest('button[data-zoom]');
+  if (!btn) return;
+  applyZoom(btn.dataset.zoom);
+});
+
+downloadBtn.addEventListener('click', () => {
+  if (!resultBlobURL) return;
+  const a = document.createElement('a');
+  a.href = resultBlobURL;
+  a.download = `이어붙인_화면_${Date.now()}.png`;
+  a.click();
+});
+
+resetBtn.addEventListener('click', () => {
+  entries = [];
+  resultBlobURL = null;
+  resultDims = null;
+  fileInput.value = '';
+  statusEl.textContent = '';
+  masks = [];
+  maskClearBtn.style.display = 'none';
+  annotations = [];
+  annotClearBtn.style.display = 'none';
+  renderAll();
+});
+
+// ---------------- masking: black-box redaction drawn directly on the image ----------------
+maskClearBtn.addEventListener('click', () => {
+  masks = [];
+  maskClearBtn.style.display = 'none';
+  composeNow(true);
+});
+
+function naturalPointFromEvent(ev) {
+  const rect = stageInner.getBoundingClientRect();
+  const scaleX = resultDims.w / rect.width;
+  const scaleY = resultDims.h / rect.height;
+  return {
+    x: Math.max(0, Math.min(resultDims.w, (ev.clientX - rect.left) * scaleX)),
+    y: Math.max(0, Math.min(resultDims.h, (ev.clientY - rect.top) * scaleY))
+  };
+}
+
+stageInner.addEventListener('pointerdown', ev => {
+  if (!resultDims) return;
+  if (ev.target.closest('.seam-handle')) return;
+
+  if (maskMode) {
+    if (ev.target.closest('.mask-outline')) return;
+    ev.preventDefault();
+    const start = naturalPointFromEvent(ev);
+    const el = document.createElement('div');
+    el.className = 'mask-draft';
+    stageInner.appendChild(el);
+    maskDraft = { startClientX: ev.clientX, startClientY: ev.clientY, startNatural: start, el };
+    window.addEventListener('pointermove', onMaskDrag);
+    window.addEventListener('pointerup', endMaskDrag);
+    return;
+  }
+
+  if (annotationMode) {
+    if (ev.target.closest('.annot-box-outline') || ev.target.closest('.annot-text-outline') || ev.target.closest('.text-input-overlay')) return;
+    ev.preventDefault();
+    if (annotTool === 'text') {
+      startTextInput(naturalPointFromEvent(ev));
+      return;
+    }
+    const start = naturalPointFromEvent(ev);
+    const el = document.createElement('div');
+    el.className = 'annot-box-draft';
+    el.style.borderColor = boxColor;
+    stageInner.appendChild(el);
+    annotDraft = { startClientX: ev.clientX, startClientY: ev.clientY, startNatural: start, el };
+    window.addEventListener('pointermove', onAnnotBoxDrag);
+    window.addEventListener('pointerup', endAnnotBoxDrag);
+  }
+});
+
+function onMaskDrag(ev) {
+  if (!maskDraft) return;
+  const rect = stageInner.getBoundingClientRect();
+  const curClientX = Math.max(rect.left, Math.min(rect.right, ev.clientX));
+  const curClientY = Math.max(rect.top, Math.min(rect.bottom, ev.clientY));
+  const left = Math.min(curClientX, maskDraft.startClientX) - rect.left;
+  const top = Math.min(curClientY, maskDraft.startClientY) - rect.top;
+  const w = Math.abs(curClientX - maskDraft.startClientX);
+  const h = Math.abs(curClientY - maskDraft.startClientY);
+  maskDraft.el.style.left = left + 'px';
+  maskDraft.el.style.top = top + 'px';
+  maskDraft.el.style.width = w + 'px';
+  maskDraft.el.style.height = h + 'px';
+}
+
+function endMaskDrag(ev) {
+  if (!maskDraft) return;
+  const movedEnough = Math.abs(ev.clientX - maskDraft.startClientX) > 5 || Math.abs(ev.clientY - maskDraft.startClientY) > 5;
+  maskDraft.el.remove();
+  if (movedEnough) {
+    const end = naturalPointFromEvent(ev);
+    const x = Math.min(maskDraft.startNatural.x, end.x);
+    const y = Math.min(maskDraft.startNatural.y, end.y);
+    const w = Math.abs(end.x - maskDraft.startNatural.x);
+    const h = Math.abs(end.y - maskDraft.startNatural.y);
+    masks.push({ id: maskIdSeq++, x, y, w, h });
+    maskClearBtn.style.display = 'inline-block';
+    composeNow(true);
+  }
+  maskDraft = null;
+  window.removeEventListener('pointermove', onMaskDrag);
+  window.removeEventListener('pointerup', endMaskDrag);
+}
+
+let activeMaskMove = null; // {mask, grabDX, grabDY, outline, rafPending}
+
+function renderMaskOverlays() {
+  stageInner.querySelectorAll('.mask-outline').forEach(el => el.remove());
+  maskClearBtn.style.display = masks.length ? 'inline-block' : 'none';
+  if (!maskMode || !resultDims || !resultDims.w) return;
+  masks.forEach(m => {
+    const outline = document.createElement('div');
+    outline.className = 'mask-outline';
+    outline.style.left = (m.x / resultDims.w * 100) + '%';
+    outline.style.top = (m.y / resultDims.h * 100) + '%';
+    outline.style.width = (m.w / resultDims.w * 100) + '%';
+    outline.style.height = (m.h / resultDims.h * 100) + '%';
+    outline.title = '드래그해서 이동';
+
+    outline.addEventListener('pointerdown', ev => {
+      if (ev.target.closest('.del')) return; // let the delete button handle its own click
+      ev.preventDefault();
+      ev.stopPropagation(); // don't let this bubble to stageInner and start a new mask
+      const grab = naturalPointFromEvent(ev);
+      activeMaskMove = { mask: m, grabDX: grab.x - m.x, grabDY: grab.y - m.y, outline, rafPending: false };
+      outline.setPointerCapture && outline.setPointerCapture(ev.pointerId);
+      window.addEventListener('pointermove', onMaskMove);
+      window.addEventListener('pointerup', endMaskMove);
+    });
+
+    const del = document.createElement('div');
+    del.className = 'del';
+    del.textContent = '✕';
+    del.title = '이 마스킹 지우기';
+    del.addEventListener('click', ev => {
+      ev.stopPropagation();
+      masks = masks.filter(x => x.id !== m.id);
+      composeNow(true);
+    });
+    outline.appendChild(del);
+    stageInner.appendChild(outline);
+  });
+}
+
+function onMaskMove(ev) {
+  if (!activeMaskMove) return;
+  const { mask, grabDX, grabDY, outline } = activeMaskMove;
+  const p = naturalPointFromEvent(ev);
+  const newX = Math.max(0, Math.min(resultDims.w - mask.w, p.x - grabDX));
+  const newY = Math.max(0, Math.min(resultDims.h - mask.h, p.y - grabDY));
+  mask.x = newX;
+  mask.y = newY;
+  // move the outline immediately for smooth feedback
+  outline.style.left = (newX / resultDims.w * 100) + '%';
+  outline.style.top = (newY / resultDims.h * 100) + '%';
+
+  if (!activeMaskMove.rafPending) {
+    activeMaskMove.rafPending = true;
+    requestAnimationFrame(() => {
+      if (!activeMaskMove) return;
+      activeMaskMove.rafPending = false;
+      composeNow(true, false); // keep re-blurring live, but don't rebuild overlay DOM mid-drag
+    });
+  }
+}
+
+function endMaskMove() {
+  if (!activeMaskMove) return;
+  activeMaskMove = null;
+  window.removeEventListener('pointermove', onMaskMove);
+  window.removeEventListener('pointerup', endMaskMove);
+  composeNow(true, true); // settle: final blur + rebuild overlay positions cleanly
+}
+
+// ---------------- box / text annotations ----------------
+maskToggleBtn.addEventListener('click', () => {
+  if (!maskMode && annotationMode) { annotationMode = false; syncAnnotToggleUI(); renderAnnotationOverlays(); }
+  maskMode = !maskMode;
+  maskToggleBtn.classList.toggle('active', maskMode);
+  maskToggleBtn.textContent = maskMode ? '마스킹 끄기' : '마스킹';
+  stageInner.classList.toggle('mask-mode', maskMode);
+  maskHint.style.display = maskMode ? 'block' : 'none';
+  renderMaskOverlays();
+});
+
+annotToggleBtn.addEventListener('click', () => {
+  if (!annotationMode && maskMode) {
+    maskMode = false;
+    maskToggleBtn.classList.remove('active');
+    maskToggleBtn.textContent = '마스킹';
+    stageInner.classList.remove('mask-mode');
+    maskHint.style.display = 'none';
+    renderMaskOverlays();
+  }
+  annotationMode = !annotationMode;
+  syncAnnotToggleUI();
+  renderAnnotationOverlays();
+});
+
+function syncAnnotToggleUI() {
+  annotToggleBtn.classList.toggle('active', annotationMode);
+  annotToggleBtn.textContent = annotationMode ? '박스/텍스트 끄기' : '박스/텍스트';
+  stageInner.classList.toggle('annot-mode', annotationMode);
+  annotToolbar.style.display = annotationMode ? 'flex' : 'none';
+  annotHint.style.display = annotationMode ? 'block' : 'none';
+}
+
+annotClearBtn.addEventListener('click', () => {
+  annotations = [];
+  annotClearBtn.style.display = 'none';
+  composeNow(true);
+});
+
+toolBoxBtn.addEventListener('click', () => {
+  annotTool = 'box';
+  toolBoxBtn.classList.add('active');
+  toolTextBtn.classList.remove('active');
+});
+toolTextBtn.addEventListener('click', () => {
+  annotTool = 'text';
+  toolTextBtn.classList.add('active');
+  toolBoxBtn.classList.remove('active');
+});
+boxColorInput.addEventListener('input', () => { boxColor = boxColorInput.value; });
+textColorInput.addEventListener('input', () => { textColor = textColorInput.value; });
+textSizeRange.addEventListener('input', () => {
+  textSize = parseInt(textSizeRange.value, 10);
+  textSizeVal.textContent = textSize + 'px';
+});
+
+function onAnnotBoxDrag(ev) {
+  if (!annotDraft) return;
+  const rect = stageInner.getBoundingClientRect();
+  const curClientX = Math.max(rect.left, Math.min(rect.right, ev.clientX));
+  const curClientY = Math.max(rect.top, Math.min(rect.bottom, ev.clientY));
+  const left = Math.min(curClientX, annotDraft.startClientX) - rect.left;
+  const top = Math.min(curClientY, annotDraft.startClientY) - rect.top;
+  const w = Math.abs(curClientX - annotDraft.startClientX);
+  const h = Math.abs(curClientY - annotDraft.startClientY);
+  annotDraft.el.style.left = left + 'px';
+  annotDraft.el.style.top = top + 'px';
+  annotDraft.el.style.width = w + 'px';
+  annotDraft.el.style.height = h + 'px';
+}
+
+function endAnnotBoxDrag(ev) {
+  if (!annotDraft) return;
+  const movedEnough = Math.abs(ev.clientX - annotDraft.startClientX) > 5 || Math.abs(ev.clientY - annotDraft.startClientY) > 5;
+  annotDraft.el.remove();
+  if (movedEnough) {
+    const end = naturalPointFromEvent(ev);
+    const x = Math.min(annotDraft.startNatural.x, end.x);
+    const y = Math.min(annotDraft.startNatural.y, end.y);
+    const w = Math.abs(end.x - annotDraft.startNatural.x);
+    const h = Math.abs(end.y - annotDraft.startNatural.y);
+    annotations.push({ id: annotIdSeq++, type: 'box', x, y, w, h, color: boxColor, strokeWidth: 6 });
+    annotClearBtn.style.display = 'inline-block';
+    composeNow(true);
+  }
+  annotDraft = null;
+  window.removeEventListener('pointermove', onAnnotBoxDrag);
+  window.removeEventListener('pointerup', endAnnotBoxDrag);
+}
+
+const measureCtx = document.createElement('canvas').getContext('2d');
+function measureTextAnnotation(a) {
+  measureCtx.font = `700 ${a.fontSize}px 'Pretendard','Malgun Gothic','Apple SD Gothic Neo',sans-serif`;
+  const lines = (a.text || '').split('\n');
+  let maxW = 0;
+  lines.forEach(line => { const w = measureCtx.measureText(line).width; if (w > maxW) maxW = w; });
+  a.w = Math.max(16, Math.ceil(maxW));
+  a.h = Math.max(16, lines.length * Math.round(a.fontSize * 1.3));
+}
+
+function startTextInput(point, existing) {
+  const ta = document.createElement('textarea');
+  ta.className = 'text-input-overlay';
+  ta.style.left = (point.x / resultDims.w * 100) + '%';
+  ta.style.top = (point.y / resultDims.h * 100) + '%';
+  ta.style.color = existing ? existing.color : textColor;
+  ta.value = existing ? existing.text : '';
+  ta.placeholder = '텍스트 입력 후 Enter (줄바꿈은 Shift+Enter)';
+  stageInner.appendChild(ta);
+  ta.focus();
+  if (existing) ta.select();
+
+  let done = false;
+  function commit() {
+    if (done) return;
+    done = true;
+    const val = ta.value.trim();
+    ta.remove();
+    if (!val) {
+      if (existing) { annotations = annotations.filter(a => a.id !== existing.id); composeNow(true); }
+      return;
+    }
+    if (existing) {
+      existing.text = val;
+    } else {
+      const a = { id: annotIdSeq++, type: 'text', x: point.x, y: point.y, text: val, color: textColor, fontSize: textSize };
+      annotations.push(a);
+      annotClearBtn.style.display = 'inline-block';
+    }
+    composeNow(true);
+  }
+  function cancel() {
+    if (done) return;
+    done = true;
+    ta.remove();
+  }
+  ta.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); commit(); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); cancel(); }
+  });
+  ta.addEventListener('blur', commit);
+}
+
+function renderAnnotationOverlays() {
+  stageInner.querySelectorAll('.annot-box-outline, .annot-text-outline').forEach(el => el.remove());
+  annotClearBtn.style.display = annotations.length ? 'inline-block' : 'none';
+  if (!annotationMode || !resultDims || !resultDims.w) return;
+
+  annotations.forEach(a => {
+    const outline = document.createElement('div');
+    if (a.type === 'box') {
+      outline.className = 'annot-box-outline';
+      outline.style.borderColor = a.color;
+    } else {
+      measureTextAnnotation(a);
+      outline.className = 'annot-text-outline';
+    }
+    outline.style.left = (a.x / resultDims.w * 100) + '%';
+    outline.style.top = (a.y / resultDims.h * 100) + '%';
+    outline.style.width = (a.w / resultDims.w * 100) + '%';
+    outline.style.height = (a.h / resultDims.h * 100) + '%';
+    outline.title = '드래그해서 이동';
+
+    // if this annotation sits near the very top of the stage, the toolbar would be
+    // clipped or overlap other UI if placed above — flip it below instead
+    const stageRect = stageInner.getBoundingClientRect();
+    const displayedTopPx = (a.y / resultDims.h) * stageRect.height;
+    if (displayedTopPx < 46) outline.classList.add('toolbar-below');
+
+    outline.addEventListener('pointerdown', ev => {
+      if (ev.target.closest('.annot-mini-toolbar')) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const grab = naturalPointFromEvent(ev);
+      activeAnnotMove = { a, grabDX: grab.x - a.x, grabDY: grab.y - a.y, outline, rafPending: false };
+      outline.setPointerCapture && outline.setPointerCapture(ev.pointerId);
+      window.addEventListener('pointermove', onAnnotMove);
+      window.addEventListener('pointerup', endAnnotMove);
+    });
+
+    const mini = document.createElement('div');
+    mini.className = 'annot-mini-toolbar';
+    mini.addEventListener('pointerdown', ev => ev.stopPropagation());
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.value = a.color;
+    colorInput.title = '색상';
+    colorInput.addEventListener('input', () => { a.color = colorInput.value; composeNow(true, true, false); });
+    mini.appendChild(colorInput);
+
+    if (a.type === 'text') {
+      const sizeInput = document.createElement('input');
+      sizeInput.type = 'number';
+      sizeInput.min = 10; sizeInput.max = 160;
+      sizeInput.value = a.fontSize;
+      sizeInput.title = '글자 크기(px)';
+      sizeInput.addEventListener('change', () => {
+        a.fontSize = Math.max(8, parseInt(sizeInput.value, 10) || a.fontSize);
+        composeNow(true, true, true);
+      });
+      mini.appendChild(sizeInput);
+
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'mbtn';
+      editBtn.textContent = '✎';
+      editBtn.title = '텍스트 수정';
+      editBtn.addEventListener('click', ev => {
+        ev.stopPropagation();
+        startTextInput({ x: a.x, y: a.y }, a);
+      });
+      mini.appendChild(editBtn);
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'mbtn del';
+    delBtn.textContent = '✕';
+    delBtn.title = '삭제';
+    delBtn.addEventListener('click', ev => {
+      ev.stopPropagation();
+      annotations = annotations.filter(x => x.id !== a.id);
+      composeNow(true);
+    });
+    mini.appendChild(delBtn);
+
+    outline.appendChild(mini);
+    stageInner.appendChild(outline);
+  });
+}
+
+function onAnnotMove(ev) {
+  if (!activeAnnotMove) return;
+  const { a, grabDX, grabDY, outline } = activeAnnotMove;
+  const p = naturalPointFromEvent(ev);
+  const newX = Math.max(0, Math.min(resultDims.w - (a.w || 0), p.x - grabDX));
+  const newY = Math.max(0, Math.min(resultDims.h - (a.h || 0), p.y - grabDY));
+  a.x = newX; a.y = newY;
+  outline.style.left = (newX / resultDims.w * 100) + '%';
+  outline.style.top = (newY / resultDims.h * 100) + '%';
+
+  if (!activeAnnotMove.rafPending) {
+    activeAnnotMove.rafPending = true;
+    requestAnimationFrame(() => {
+      if (!activeAnnotMove) return;
+      activeAnnotMove.rafPending = false;
+      composeNow(true, true, false); // keep re-baking live, don't rebuild overlay DOM mid-drag
+    });
+  }
+}
+
+function endAnnotMove() {
+  if (!activeAnnotMove) return;
+  activeAnnotMove = null;
+  window.removeEventListener('pointermove', onAnnotMove);
+  window.removeEventListener('pointerup', endAnnotMove);
+  composeNow(true, true, true);
+}
+
+function renderAll() {
+  renderList();
+  renderSeamBlocks();
+  composeNow();
+}
+
+renderAll();
+</script>
+</body>
+</html>
