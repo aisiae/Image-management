@@ -161,30 +161,10 @@
   .annot-text-outline{
     position:absolute;border:2px dashed rgba(0,0,0,.4);z-index:7;cursor:move;touch-action:none;
   }
-  .annot-mini-toolbar{
-    position:absolute;top:-42px;left:-2px;display:flex;align-items:center;gap:4px;
-    background:#fff;border:1px solid var(--line);border-radius:6px;padding:3px 4px;
-    box-shadow:0 1px 4px rgba(0,0,0,.2);white-space:nowrap;z-index:9;cursor:default;
+  .annot-box-outline.selected,
+  .annot-text-outline.selected{
+    outline:2px solid #2f6bd6;outline-offset:2px;
   }
-  .annot-mini-toolbar::after{
-    content:"";position:absolute;left:10px;bottom:-5px;width:0;height:0;
-    border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid var(--line);
-  }
-  .annot-box-outline.toolbar-below .annot-mini-toolbar,
-  .annot-text-outline.toolbar-below .annot-mini-toolbar{
-    top:auto;bottom:-42px;
-  }
-  .annot-box-outline.toolbar-below .annot-mini-toolbar::after,
-  .annot-text-outline.toolbar-below .annot-mini-toolbar::after{
-    bottom:auto;top:-5px;border-top:none;border-bottom:5px solid var(--line);
-  }
-  .annot-mini-toolbar input[type=color]{width:18px;height:18px;border:none;padding:0;cursor:pointer;background:none;}
-  .annot-mini-toolbar input[type=number]{width:42px;border:1px solid var(--line);border-radius:4px;font-size:11px;padding:1px 3px;}
-  .annot-mini-toolbar .mbtn{
-    width:19px;height:19px;border-radius:4px;display:flex;align-items:center;justify-content:center;
-    cursor:pointer;font-size:11px;border:none;background:#f1f0ec;color:var(--ink);padding:0;
-  }
-  .annot-mini-toolbar .mbtn.del{background:var(--danger);color:#fff;}
 
   .text-input-overlay{
     position:absolute;min-width:120px;min-height:30px;padding:4px 6px;
@@ -294,7 +274,7 @@
         </div>
         <div class="hint" id="dragHint" style="display:none;">이미지 위 초록 점선을 위아래로 드래그하면 바로 위 이미지의 하단이 잘려요 (아래로 당기면 덜 자르고, 위로 당기면 더 잘라요). 아래쪽 이음매 조정 박스에서 반대편(아래 이미지 상단)도 따로 자를 수 있어요.</div>
         <div class="hint" id="maskHint" style="display:none;">마스킹 모드에서는 가리고 싶은 부분을 이미지 위에서 드래그하면 흐림 처리로 덮여요. 박스 안쪽을 드래그하면 위치를 옮길 수 있고, 우측 상단 ✕로 지울 수 있어요. 이음매 조정을 먼저 끝낸 뒤 마지막 단계로 사용하는 걸 추천해요.</div>
-        <div class="hint" id="annotHint" style="display:none;">박스/텍스트 모드에서는 위에서 도구를 고른 뒤 이미지 위에 드래그(박스)하거나 클릭(텍스트)하세요. 만든 항목 위에 뜨는 작은 도구모음에서 색상·크기 변경, 수정(✎), 삭제(✕)를 할 수 있고, 항목 안쪽을 드래그하면 위치도 옮길 수 있어요.</div>
+        <div class="hint" id="annotHint" style="display:none;">박스/텍스트 모드에서는 위에서 도구를 고른 뒤 이미지 위에 드래그(박스)하거나 클릭(텍스트)하세요. 항목을 클릭해서 선택하면 위쪽 색상·크기로 바로 수정할 수 있고, 항목 안쪽을 드래그하면 위치를 옮길 수 있어요. 텍스트는 더블클릭하면 내용을 수정할 수 있고, 선택한 상태에서 Delete(또는 Backspace) 키를 누르면 삭제돼요.</div>
 
         <div id="seamList"></div>
         <div class="hint" id="hintText"></div>
@@ -362,6 +342,7 @@ let textColor = '#e02424';
 let textSize = 28;
 let annotDraft = null;
 let activeAnnotMove = null;
+let selectedAnnotId = null;
 
 dropzone.addEventListener('click', () => fileInput.click());
 dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
@@ -941,6 +922,7 @@ stageInner.addEventListener('pointerdown', ev => {
   if (annotationMode) {
     if (ev.target.closest('.annot-box-outline') || ev.target.closest('.annot-text-outline') || ev.target.closest('.text-input-overlay')) return;
     ev.preventDefault();
+    if (selectedAnnotId !== null) { selectedAnnotId = null; renderAnnotationOverlays(); }
     if (annotTool === 'text') {
       startTextInput(naturalPointFromEvent(ev));
       return;
@@ -1095,6 +1077,7 @@ function syncAnnotToggleUI() {
 
 annotClearBtn.addEventListener('click', () => {
   annotations = [];
+  selectedAnnotId = null;
   annotClearBtn.style.display = 'none';
   composeNow(true);
 });
@@ -1109,11 +1092,32 @@ toolTextBtn.addEventListener('click', () => {
   toolTextBtn.classList.add('active');
   toolBoxBtn.classList.remove('active');
 });
-boxColorInput.addEventListener('input', () => { boxColor = boxColorInput.value; });
-textColorInput.addEventListener('input', () => { textColor = textColorInput.value; });
+boxColorInput.addEventListener('input', () => {
+  boxColor = boxColorInput.value;
+  const sel = getSelectedAnnotation();
+  if (sel && sel.type === 'box') { sel.color = boxColor; composeNow(true, true, true); }
+});
+textColorInput.addEventListener('input', () => {
+  textColor = textColorInput.value;
+  const sel = getSelectedAnnotation();
+  if (sel && sel.type === 'text') { sel.color = textColor; composeNow(true, true, true); }
+});
 textSizeRange.addEventListener('input', () => {
   textSize = parseInt(textSizeRange.value, 10);
   textSizeVal.textContent = textSize + 'px';
+  const sel = getSelectedAnnotation();
+  if (sel && sel.type === 'text') { sel.fontSize = textSize; composeNow(true, true, true); }
+});
+
+window.addEventListener('keydown', ev => {
+  if ((ev.key === 'Delete' || ev.key === 'Backspace') && selectedAnnotId !== null) {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'TEXTAREA' || tag === 'INPUT') return;
+    ev.preventDefault();
+    annotations = annotations.filter(a => a.id !== selectedAnnotId);
+    selectedAnnotId = null;
+    composeNow(true);
+  }
 });
 
 function onAnnotBoxDrag(ev) {
@@ -1166,6 +1170,8 @@ function startTextInput(point, existing) {
   ta.style.left = (point.x / resultDims.w * 100) + '%';
   ta.style.top = (point.y / resultDims.h * 100) + '%';
   ta.style.color = existing ? existing.color : textColor;
+  ta.style.fontSize = (existing ? existing.fontSize : textSize) + 'px';
+  ta.style.fontWeight = '700';
   ta.value = existing ? existing.text : '';
   ta.placeholder = '텍스트 입력 후 Enter (줄바꿈은 Shift+Enter)';
   stageInner.appendChild(ta);
@@ -1179,7 +1185,11 @@ function startTextInput(point, existing) {
     const val = ta.value.trim();
     ta.remove();
     if (!val) {
-      if (existing) { annotations = annotations.filter(a => a.id !== existing.id); composeNow(true); }
+      if (existing) {
+        annotations = annotations.filter(a => a.id !== existing.id);
+        if (selectedAnnotId === existing.id) selectedAnnotId = null;
+        composeNow(true);
+      }
       return;
     }
     if (existing) {
@@ -1203,6 +1213,22 @@ function startTextInput(point, existing) {
   ta.addEventListener('blur', commit);
 }
 
+function selectAnnotation(a) {
+  selectedAnnotId = a.id;
+  if (a.type === 'box') {
+    boxColorInput.value = a.color;
+  } else {
+    textColorInput.value = a.color;
+    textSizeRange.value = a.fontSize;
+    textSizeVal.textContent = a.fontSize + 'px';
+  }
+  renderAnnotationOverlays();
+}
+
+function getSelectedAnnotation() {
+  return annotations.find(a => a.id === selectedAnnotId) || null;
+}
+
 function renderAnnotationOverlays() {
   stageInner.querySelectorAll('.annot-box-outline, .annot-text-outline').forEach(el => el.remove());
   annotClearBtn.style.display = annotations.length ? 'inline-block' : 'none';
@@ -1217,22 +1243,17 @@ function renderAnnotationOverlays() {
       measureTextAnnotation(a);
       outline.className = 'annot-text-outline';
     }
+    if (a.id === selectedAnnotId) outline.classList.add('selected');
     outline.style.left = (a.x / resultDims.w * 100) + '%';
     outline.style.top = (a.y / resultDims.h * 100) + '%';
     outline.style.width = (a.w / resultDims.w * 100) + '%';
     outline.style.height = (a.h / resultDims.h * 100) + '%';
-    outline.title = '드래그해서 이동';
-
-    // if this annotation sits near the very top of the stage, the toolbar would be
-    // clipped or overlap other UI if placed above — flip it below instead
-    const stageRect = stageInner.getBoundingClientRect();
-    const displayedTopPx = (a.y / resultDims.h) * stageRect.height;
-    if (displayedTopPx < 46) outline.classList.add('toolbar-below');
+    outline.title = a.type === 'text' ? '드래그해서 이동 · 더블클릭으로 수정' : '드래그해서 이동';
 
     outline.addEventListener('pointerdown', ev => {
-      if (ev.target.closest('.annot-mini-toolbar')) return;
       ev.preventDefault();
       ev.stopPropagation();
+      selectAnnotation(a);
       const grab = naturalPointFromEvent(ev);
       activeAnnotMove = { a, grabDX: grab.x - a.x, grabDY: grab.y - a.y, outline, rafPending: false };
       outline.setPointerCapture && outline.setPointerCapture(ev.pointerId);
@@ -1240,54 +1261,13 @@ function renderAnnotationOverlays() {
       window.addEventListener('pointerup', endAnnotMove);
     });
 
-    const mini = document.createElement('div');
-    mini.className = 'annot-mini-toolbar';
-    mini.addEventListener('pointerdown', ev => ev.stopPropagation());
-
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = a.color;
-    colorInput.title = '색상';
-    colorInput.addEventListener('input', () => { a.color = colorInput.value; composeNow(true, true, false); });
-    mini.appendChild(colorInput);
-
     if (a.type === 'text') {
-      const sizeInput = document.createElement('input');
-      sizeInput.type = 'number';
-      sizeInput.min = 10; sizeInput.max = 160;
-      sizeInput.value = a.fontSize;
-      sizeInput.title = '글자 크기(px)';
-      sizeInput.addEventListener('change', () => {
-        a.fontSize = Math.max(8, parseInt(sizeInput.value, 10) || a.fontSize);
-        composeNow(true, true, true);
-      });
-      mini.appendChild(sizeInput);
-
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'mbtn';
-      editBtn.textContent = '✎';
-      editBtn.title = '텍스트 수정';
-      editBtn.addEventListener('click', ev => {
+      outline.addEventListener('dblclick', ev => {
         ev.stopPropagation();
         startTextInput({ x: a.x, y: a.y }, a);
       });
-      mini.appendChild(editBtn);
     }
 
-    const delBtn = document.createElement('button');
-    delBtn.type = 'button';
-    delBtn.className = 'mbtn del';
-    delBtn.textContent = '✕';
-    delBtn.title = '삭제';
-    delBtn.addEventListener('click', ev => {
-      ev.stopPropagation();
-      annotations = annotations.filter(x => x.id !== a.id);
-      composeNow(true);
-    });
-    mini.appendChild(delBtn);
-
-    outline.appendChild(mini);
     stageInner.appendChild(outline);
   });
 }
