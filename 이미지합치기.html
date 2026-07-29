@@ -26,7 +26,7 @@
     font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     padding:28px 20px 80px;
   }
-  .wrap{max-width:1280px;margin:0 auto;}
+  .wrap{max-width:100%;margin:0 auto;}
   header{margin-bottom:20px;}
   header h1{font-size:22px;margin:0 0 6px;letter-spacing:-0.3px;}
   header p{margin:0;color:var(--sub);font-size:14px;line-height:1.6;}
@@ -287,7 +287,7 @@
         </div>
 
         <div id="stitchStage">
-          <div class="empty-stage" id="emptyStage">이미지를 2장 이상 올리면 여기에 이어붙인 모습이 실시간으로 나타나요.</div>
+          <div class="empty-stage" id="emptyStage">이미지를 2장 이상 올리면 여기에 이어붙인 모습이 실시간으로 나타나요. (Ctrl+V로 붙여넣기도 가능)</div>
           <div id="stageInner">
             <img id="resultImg" style="display:none;">
           </div>
@@ -696,7 +696,7 @@ function composeNow(rebuildHandles, rebuildMasks, rebuildAnnots) {
   if (entries.length < 1) {
     resultImg.style.display = 'none';
     emptyStage.style.display = 'block';
-    emptyStage.textContent = '이미지를 올리면 여기에 나타나요. 1장만 올려서 마스킹만 하거나, 2장 이상 올려서 이어붙일 수도 있어요.';
+    emptyStage.textContent = '이미지를 올리면 여기에 나타나요. 1장만 올려서 마스킹만 하거나, 2장 이상 올려서 이어붙일 수도 있어요. (Ctrl+V로 붙여넣기도 가능)';
     downloadBtn.disabled = true;
     hintText.textContent = '';
     return;
