@@ -267,8 +267,8 @@
             <button type="button" class="tool-chip active" id="toolBoxBtn">▭ 박스</button>
             <button type="button" class="tool-chip" id="toolTextBtn">T 텍스트</button>
           </div>
-          <label>박스 색상 <input type="color" id="boxColorInput" value="#e02424"></label>
-          <label>텍스트 색상 <input type="color" id="textColorInput" value="#e02424"></label>
+          <label>박스 색상 <input type="color" id="boxColorInput" value="#ffb3b3"></label>
+          <label>텍스트 색상 <input type="color" id="textColorInput" value="#ffb3b3"></label>
           <label>텍스트 크기 <input type="range" id="textSizeRange" min="14" max="72" value="28"><span id="textSizeVal">28px</span></label>
           <label>폰트
             <select id="fontFamilySelect">
@@ -360,8 +360,8 @@ let annotations = [];    // [{id, type:'box'|'text', x, y, w, h, color, text, fo
 let annotIdSeq = 0;
 let annotationMode = false;
 let annotTool = 'box';   // 'box' | 'text'
-let boxColor = '#e02424';
-let textColor = '#e02424';
+let boxColor = '#ffb3b3';
+let textColor = '#ffb3b3';
 let textSize = 28;
 let textFontFamily = "'Pretendard','Apple SD Gothic Neo','Malgun Gothic',sans-serif";
 let textBold = true;
@@ -1250,8 +1250,7 @@ function startTextInput(point, existing) {
   ta.addEventListener('blur', commit);
 }
 
-function selectAnnotation(a) {
-  selectedAnnotId = a.id;
+function syncToolbarToAnnotation(a) {
   if (a.type === 'box') {
     boxColorInput.value = a.color;
   } else {
@@ -1261,7 +1260,27 @@ function selectAnnotation(a) {
     fontFamilySelect.value = a.fontFamily;
     boldToggle.checked = a.bold;
   }
-  renderAnnotationOverlays();
+}
+
+// swaps the selection highlight (and, for boxes, the resize handle) onto `outline`
+// in place, without a full renderAnnotationOverlays() rebuild — rebuilding here would
+// detach the very element the caller is about to setPointerCapture()/drag, breaking the drag.
+function markAnnotationSelected(a, outline) {
+  if (selectedAnnotId === a.id) return;
+  stageInner.querySelectorAll('.annot-box-outline.selected, .annot-text-outline.selected').forEach(el => {
+    el.classList.remove('selected');
+    const h = el.querySelector('.resize-handle');
+    if (h) h.remove();
+  });
+  selectedAnnotId = a.id;
+  outline.classList.add('selected');
+  if (a.type === 'box' && !outline.querySelector('.resize-handle')) {
+    const handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    handle.title = '드래그해서 크기 조절';
+    handle.addEventListener('pointerdown', ev => startAnnotResize(ev, a, outline));
+    outline.appendChild(handle);
+  }
 }
 
 function getSelectedAnnotation() {
@@ -1292,7 +1311,8 @@ function renderAnnotationOverlays() {
     outline.addEventListener('pointerdown', ev => {
       ev.preventDefault();
       ev.stopPropagation();
-      selectAnnotation(a);
+      markAnnotationSelected(a, outline);
+      syncToolbarToAnnotation(a);
       const grab = naturalPointFromEvent(ev);
       activeAnnotMove = { a, grabDX: grab.x - a.x, grabDY: grab.y - a.y, outline, rafPending: false };
       outline.setPointerCapture && outline.setPointerCapture(ev.pointerId);
